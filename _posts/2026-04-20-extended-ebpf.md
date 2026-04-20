@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "extended-eBPF"
+title: "UofTCTF 2026 - extended-eBPF"
 date: 2026-04-20
 categories: [meta]
 ---
@@ -55,7 +55,7 @@ We can see all the common mitigations (SMEP, SMAP, KASLR) are present.
 
 ## Analyzing the patch
 
-I didn't really overanalyze the first part of the patch, but I'll jump back to it later; now let's focus on the second part:
+Let's first focus on the second part:
 
 ```diff
  static int update_alu_sanitation_state(struct bpf_insn_aux_data *aux,
@@ -163,6 +163,59 @@ static void scalar_min_max_arsh(struct bpf_reg_state *dst_reg,
 ```
 
 The comment says "Upon reaching here, src_known is true and umax_val is equal to umin_val", which is exactly what we are looking for. Here, the verifier is thinking "if min == max, then I can use either of those values", which creates a desync between real register value, and (min, max) range kept by the verifier.
+
+## Getting back to the first part of the patch
+
+Before writing the exploit, let's revisit the first part of the patch:
+
+```diff
+diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
+index 24ae8f33e5d7..e5641845ecc0 100644
+--- a/kernel/bpf/verifier.c
++++ b/kernel/bpf/verifier.c
+@@ -13030,7 +13030,7 @@ static int retrieve_ptr_limit(const struct bpf_reg_state *ptr_reg,
+ static bool can_skip_alu_sanitation(const struct bpf_verifier_env *env,
+ 				    const struct bpf_insn *insn)
+ {
+-	return env->bypass_spec_v1 || BPF_SRC(insn->code) == BPF_K;
++	return true;
+ }
+```
+
+I didn't analyze that part very deeply, but according to my research, without this change, verifier would insert additional instructions before pointer addition operations, that would restrict the offset that is being added to the pointer.
+
+```c
+static int retrieve_ptr_limit(const struct bpf_reg_state *ptr_reg,
+			      u32 *alu_limit, bool mask_to_left)
+{
+	u32 max = 0, ptr_limit = 0;
+
+	switch (ptr_reg->type) {
+	case PTR_TO_STACK:
+		/* Offset 0 is out-of-bounds, but acceptable start for the
+		 * left direction, see BPF_REG_FP. Also, unknown scalar
+		 * offset where we would need to deal with min/max bounds is
+		 * currently prohibited for unprivileged.
+		 */
+		max = MAX_BPF_STACK + mask_to_left;
+		ptr_limit = -(ptr_reg->var_off.value + ptr_reg->off);
+		break;
+	case PTR_TO_MAP_VALUE:
+		max = ptr_reg->map_ptr->value_size;
+		ptr_limit = (mask_to_left ?
+			     ptr_reg->smin_value :
+			     ptr_reg->umax_value) + ptr_reg->off;
+		break;
+	default:
+		return REASON_TYPE;
+	}
+
+	if (ptr_limit >= max)
+		return REASON_LIMIT;
+	*alu_limit = ptr_limit;
+	return 0;
+}
+```
 
 ## Crafting arbitrary read/arbitrary write primitives
 
