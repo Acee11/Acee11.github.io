@@ -1,0 +1,13 @@
+title: CTF writeups
+description: CTF writeups
+url: "https://acee11.github.io"
+
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+permalink: /:year/:month/:day/:title/
+
+minima:
+  date_format: "%Y-%m-%d"
