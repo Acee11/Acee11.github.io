@@ -1,0 +1,160 @@
+---
+---
+
+$text-color:       #e6e6e6;
+$background-color: #1a1a1a;
+$brand-color:      #79b8ff;
+
+$grey-color:       #a0a0a0;
+$grey-color-light: #2a2a2a;
+$grey-color-dark:  #cfcfcf;
+
+@import "minima";
+
+pre,
+code {
+  border: 1px solid #3a3a3a;
+  background-color: #2a2a2f;
+  color: #e6e6e6;
+}
+
+blockquote {
+  color: #b8b8b8;
+  border-left-color: #3a3a3a;
+}
+
+.site-header {
+  border-top-color: #79b8ff;
+  border-bottom-color: #3a3a3a;
+}
+
+.site-footer {
+  border-top-color: #3a3a3a;
+}
+
+.site-title,
+.site-title:visited {
+  color: $grey-color-dark;
+}
+
+.site-nav .page-link {
+  color: $text-color;
+}
+
+@media screen and (max-width: 600px) {
+  .site-nav {
+    background-color: $background-color;
+    border-color: #3a3a3a;
+  }
+}
+
+table {
+  color: $text-color;
+  border-color: #3a3a3a;
+}
+
+table tr:nth-child(even) {
+  background-color: #222;
+}
+
+table th {
+  background-color: #262626;
+  border-color: #3a3a3a;
+  color: $text-color;
+}
+
+table td {
+  border-color: #3a3a3a;
+}
+
+hr {
+  border-color: #3a3a3a;
+}
+
+a {
+  color: $brand-color;
+
+  &:visited {
+    color: darken($brand-color, 15%);
+  }
+
+  &:hover {
+    color: lighten($brand-color, 10%);
+  }
+}
+
+// Syntax highlighting — dark palette (GitHub dark-ish, high contrast)
+$code-bg: #0d1117;
+
+div.highlighter-rouge,
+figure.highlight {
+  background: $code-bg;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+}
+
+.highlighter-rouge .highlight,
+figure.highlight,
+.highlight {
+  background: $code-bg !important;
+  color: #e6edf3;
+}
+
+pre,
+code {
+  background-color: $code-bg;
+  border: 1px solid #30363d;
+  color: #e6edf3;
+}
+
+.highlight pre,
+.highlight code {
+  background: transparent;
+  border: 0;
+  color: #e6edf3;
+}
+
+.highlight {
+  .c, .cm, .c1, .cs, .cp, .cd  { color: #8b949e; font-style: italic; font-weight: normal; }
+  .err    { color: #ff7b72; background-color: transparent; }
+  .k, .kc, .kd, .kn, .kp, .kr, .kt { color: #ff7b72; font-weight: normal; }
+  .o, .ow { color: #ff7b72; font-weight: normal; }
+  .p      { color: #e6edf3; }
+
+  .s, .sb, .sc, .sd, .s2, .se, .sh, .si, .sx, .s1 { color: #a5d6ff; }
+  .sr, .ss { color: #a5d6ff; }
+
+  .m, .mf, .mh, .mi, .il, .mo { color: #79c0ff; }
+
+  .nb, .bp, .no, .nc, .nn, .ne { color: #79c0ff; font-weight: normal; }
+  .nf, .nd, .fm  { color: #d2a8ff; font-weight: normal; }
+  .na, .nv, .vc, .vg, .vi, .nl { color: #ffa657; }
+  .nt     { color: #7ee787; }
+  .ni     { color: #ffa657; }
+
+  .gd     { color: #ffdcd7; background-color: #67060c; }
+  .gi     { color: #aff5b4; background-color: #033a16; }
+  .gh, .gu { color: #79c0ff; font-weight: bold; }
+  .gr     { color: #ff7b72; }
+  .go     { color: #8b949e; }
+  .gp     { color: #8b949e; }
+  .gs     { font-weight: bold; }
+  .ge     { font-style: italic; }
+
+  .w      { color: #e6edf3; }
+}
+
+.rouge-table,
+.rouge-table td,
+.rouge-table tr:nth-child(even) {
+  background: $code-bg;
+  border: 0;
+  color: #e6edf3;
+}
+
+.rouge-gutter,
+.lineno {
+  color: #6e7681;
+  border-right: 1px solid #30363d;
+  padding-right: 8px;
+}
